@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>俄罗斯方块</title>
+    <title>图片版俄罗斯方块</title>
     <style>
         * {
             margin: 0;
@@ -133,58 +133,104 @@
         const ROW = 20;          // 行数
         const COL = 10;          // 列数
         const BLOCK_SIZE = 30;   // 方块大小
-        const COLORS = [
+        
+        // 1. 图片路径配置（替换成你的图片地址）
+        // 方式1：本地图片（和html文件同目录）
+        const BLOCK_IMAGES = [
             null,                // 索引0不用
-            '#f72585',           // 红色 (I型)
-            '#4361ee',           // 蓝色 (J型)
-            '#4cc9f0',           // 浅蓝色 (L型)
-            '#3a0ca3',           // 紫色 (O型)
-            '#7209b7',           // 深紫色 (S型)
-            '#b5179e',           // 粉色 (T型)
-            '#560bad'            // 靛蓝色 (Z型)
+            'i_block.png',       // I型
+            'j_block.png',       // J型
+            'l_block.png',       // L型
+            'o_block.png',       // O型
+            's_block.png',       // S型
+            't_block.png',       // T型
+            'z_block.png'        // Z型
+        ];
+        // 方式2：在线图片（示例，可替换成你的图床链接）
+        // const BLOCK_IMAGES = [
+        //     null,
+        //     'https://example.com/i_block.png',
+        //     'https://example.com/j_block.png',
+        //     'https://example.com/l_block.png',
+        //     'https://example.com/o_block.png',
+        //     'https://example.com/s_block.png',
+        //     'https://example.com/t_block.png',
+        //     'https://example.com/z_block.png'
+        // ];
+
+        // 图片对象缓存（预加载用）
+        const imageCache = {};
+        // 标记所有图片是否加载完成
+        let imagesLoaded = false;
+
+        // 2. 预加载所有方块图片
+        function preloadImages() {
+            let loadedCount = 0;
+            const totalImages = BLOCK_IMAGES.length - 1; // 排除索引0
+
+            // 遍历加载图片
+            for (let i = 1; i < BLOCK_IMAGES.length; i++) {
+                const img = new Image();
+                img.src = BLOCK_IMAGES[i];
+                // 图片加载成功
+                img.onload = () => {
+                    imageCache[i] = img;
+                    loadedCount++;
+                    if (loadedCount === totalImages) {
+                        imagesLoaded = true;
+                        console.log('所有方块图片加载完成！');
+                    }
+                };
+                // 图片加载失败（降级为纯色）
+                img.onerror = () => {
+                    console.error(`加载图片失败: ${BLOCK_IMAGES[i]}，将使用纯色替代`);
+                    imageCache[i] = null; // 标记为失败，后续用纯色
+                    loadedCount++;
+                    if (loadedCount === totalImages) {
+                        imagesLoaded = true;
+                    }
+                };
+            }
+        }
+
+        // 备用颜色（图片加载失败时使用）
+        const FALLBACK_COLORS = [
+            null,
+            '#f72585', '#4361ee', '#4cc9f0', '#3a0ca3', '#7209b7', '#b5179e', '#560bad'
         ];
 
-        // 方块形状定义 (每个形状的坐标偏移)
+        // 方块形状定义
         const SHAPES = [
             [],
-            // I型
-            [[0, 0], [1, 0], [2, 0], [3, 0]],
-            // J型
-            [[0, 0], [0, 1], [1, 1], [2, 1]],
-            // L型
-            [[2, 0], [0, 1], [1, 1], [2, 1]],
-            // O型
-            [[0, 0], [1, 0], [0, 1], [1, 1]],
-            // S型
-            [[1, 0], [2, 0], [0, 1], [1, 1]],
-            // T型
-            [[1, 0], [0, 1], [1, 1], [2, 1]],
-            // Z型
-            [[0, 0], [1, 0], [1, 1], [2, 1]]
+            [[0, 0], [1, 0], [2, 0], [3, 0]], // I型
+            [[0, 0], [0, 1], [1, 1], [2, 1]], // J型
+            [[2, 0], [0, 1], [1, 1], [2, 1]], // L型
+            [[0, 0], [1, 0], [0, 1], [1, 1]], // O型
+            [[1, 0], [2, 0], [0, 1], [1, 1]], // S型
+            [[1, 0], [0, 1], [1, 1], [2, 1]], // T型
+            [[0, 0], [1, 0], [1, 1], [2, 1]]  // Z型
         ];
 
         // 游戏状态
         let canvas, ctx;
-        let board = [];          // 游戏面板
-        let currentPiece = null; // 当前方块
-        let currentX, currentY;  // 当前方块位置
-        let score = 0;           // 得分
-        let gameInterval;        // 游戏定时器
-        let isPlaying = false;   // 游戏是否进行中
-        let isPaused = false;    // 是否暂停
+        let board = [];
+        let currentPiece = null;
+        let currentX, currentY;
+        let score = 0;
+        let gameInterval;
+        let isPlaying = false;
+        let isPaused = false;
 
         // 初始化
         function init() {
             canvas = document.getElementById('gameBoard');
             ctx = canvas.getContext('2d');
             
-            // 初始化游戏面板
+            // 先预加载图片
+            preloadImages();
+            
             resetBoard();
-            
-            // 绑定事件
             bindEvents();
-            
-            // 绘制空面板
             drawBoard();
         }
 
@@ -196,29 +242,30 @@
             isPlaying = false;
             isPaused = false;
             
-            // 清除定时器
             if (gameInterval) clearInterval(gameInterval);
-            
-            // 隐藏游戏结束提示
             document.getElementById('gameOver').style.display = 'none';
         }
 
         // 生成随机方块
         function generateRandomPiece() {
-            const type = Math.floor(Math.random() * 7) + 1; // 1-7种形状
+            const type = Math.floor(Math.random() * 7) + 1;
             const shape = SHAPES[type];
             return { type, shape };
         }
 
         // 生成新方块
         function newPiece() {
+            // 图片未加载完成时，等待
+            if (!imagesLoaded) {
+                setTimeout(newPiece, 100);
+                return;
+            }
+            
             const piece = generateRandomPiece();
             currentPiece = piece;
-            // 初始位置 (居中偏上)
             currentX = Math.floor(COL / 2) - Math.ceil(piece.shape[0].length / 2);
             currentY = 0;
 
-            // 检查游戏是否结束 (新方块无法生成)
             if (!isValidMove(currentX, currentY, currentPiece.shape)) {
                 gameOver();
             }
@@ -232,11 +279,9 @@
                 const newX = x + dx;
                 const newY = y + dy;
 
-                // 检查边界
                 if (newX < 0 || newX >= COL || newY >= ROW) {
                     return false;
                 }
-                // 检查是否与已有方块重叠 (忽略y<0的情况，方块还在顶部外)
                 if (newY >= 0 && board[newY][newX] !== 0) {
                     return false;
                 }
@@ -244,11 +289,11 @@
             return true;
         }
 
-        // 将当前方块固定到面板上
+        // 固定方块到面板
         function fixPiece() {
             for (let i = 0; i < currentPiece.shape.length; i++) {
-                const dx = currentPiece.shape[i][0];
-                const dy = currentPiece.shape[i][1];
+                const dx = shape[i][0];
+                const dy = shape[i][1];
                 const x = currentX + dx;
                 const y = currentY + dy;
                 
@@ -257,49 +302,38 @@
                 }
             }
 
-            // 检查消除行
             checkLines();
-            
-            // 生成新方块
             newPiece();
         }
 
-        // 检查并消除满行
+        // 检查消除行
         function checkLines() {
             let linesCleared = 0;
             
             for (let y = ROW - 1; y >= 0; y--) {
-                // 检查行是否满
                 if (board[y].every(cell => cell !== 0)) {
                     linesCleared++;
                     
-                    // 移除当前行，上方所有行下移
                     for (let ny = y; ny > 0; ny--) {
                         board[ny] = [...board[ny - 1]];
                     }
-                    // 顶部新增空行
                     board[0] = Array(COL).fill(0);
-                    
-                    // 重新检查当前行 (因为行下移了)
                     y++;
                 }
             }
 
-            // 根据消除的行数加分
             if (linesCleared > 0) {
-                score += linesCleared * 100 * linesCleared; // 消除越多分越高
+                score += linesCleared * 100 * linesCleared;
                 document.getElementById('score').textContent = score;
             }
         }
 
-        // 修复后的旋转函数（核心修改）
+        // 旋转方块（修复版）
         function rotatePiece() {
-            if (!currentPiece || currentPiece.type === 4) return; // O型无需旋转
+            if (!currentPiece || currentPiece.type === 4) return;
             
-            // 1. 计算旋转后的形状 (顺时针90度: (x,y) → (y, -x))
             const rotatedShape = currentPiece.shape.map(([x, y]) => [y, -x]);
             
-            // 2. 先检查原位置是否可旋转
             if (isValidMove(currentX, currentY, rotatedShape)) {
                 currentPiece.shape = rotatedShape;
                 drawBoard();
@@ -307,22 +341,17 @@
                 return;
             }
             
-            // 3. 原位置不可旋转时，尝试偏移补偿（左移/右移）
-            // 补偿逻辑：检查旋转后是否越界，自动偏移修正
             let offsetX = 0;
-            // 计算旋转后形状的最大/最小X偏移
             const shapeXs = rotatedShape.map(([dx]) => currentX + dx);
             const minX = Math.min(...shapeXs);
             const maxX = Math.max(...shapeXs);
             
-            // 越左则右移补偿，越右则左移补偿
             if (minX < 0) {
-                offsetX = -minX; // 左边界补偿
+                offsetX = -minX;
             } else if (maxX >= COL) {
-                offsetX = COL - 1 - maxX; // 右边界补偿
+                offsetX = COL - 1 - maxX;
             }
             
-            // 检查补偿后是否可旋转
             if (isValidMove(currentX + offsetX, currentY, rotatedShape)) {
                 currentX += offsetX;
                 currentPiece.shape = rotatedShape;
@@ -331,7 +360,6 @@
                 return;
             }
             
-            // 4. 补偿后仍不可旋转，尝试上下补偿（极少情况）
             if (isValidMove(currentX, currentY - 1, rotatedShape)) {
                 currentY -= 1;
                 currentPiece.shape = rotatedShape;
@@ -342,7 +370,7 @@
 
         // 移动方块
         function movePiece(dx, dy) {
-            if (!currentPiece || isPaused) return;
+            if (!currentPiece || isPaused || !imagesLoaded) return;
             
             const newX = currentX + dx;
             const newY = currentY + dy;
@@ -353,9 +381,7 @@
                 drawBoard();
                 drawPiece();
                 return true;
-            } 
-            // 向下移动无效时，固定方块
-            else if (dy > 0) {
+            } else if (dy > 0) {
                 fixPiece();
                 drawBoard();
                 return false;
@@ -364,18 +390,43 @@
             return false;
         }
 
-        // 下落方块 (游戏主循环)
+        // 下落方块
         function dropPiece() {
-            if (!isPlaying || isPaused) return;
+            if (!isPlaying || isPaused || !imagesLoaded) return;
             movePiece(0, 1);
+        }
+
+        // 3. 重写绘制方块函数（图片版）
+        function drawBlock(x, y, type) {
+            // 先绘制边框（保留网格效果）
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x, y, BLOCK_SIZE, BLOCK_SIZE);
+
+            // 图片加载成功则绘制图片
+            if (imageCache[type]) {
+                ctx.drawImage(
+                    imageCache[type],
+                    x,          // 画布X坐标
+                    y,          // 画布Y坐标
+                    BLOCK_SIZE, // 绘制宽度
+                    BLOCK_SIZE  // 绘制高度
+                );
+            } else {
+                // 图片加载失败，降级为纯色
+                ctx.fillStyle = FALLBACK_COLORS[type];
+                ctx.fillRect(x, y, BLOCK_SIZE, BLOCK_SIZE);
+                // 高光效果
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+                ctx.fillRect(x + 2, y + 2, BLOCK_SIZE - 4, BLOCK_SIZE - 4);
+            }
         }
 
         // 绘制游戏面板
         function drawBoard() {
-            // 清空画布
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // 绘制网格
+            // 绘制网格线
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
             ctx.lineWidth = 1;
             
@@ -384,36 +435,20 @@
                 for (let x = 0; x < COL; x++) {
                     const type = board[y][x];
                     if (type !== 0) {
-                        drawBlock(x * BLOCK_SIZE, y * BLOCK_SIZE, COLORS[type]);
+                        drawBlock(x * BLOCK_SIZE, y * BLOCK_SIZE, type);
                     }
-                    
                     // 绘制网格线
                     ctx.strokeRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
                 }
             }
         }
 
-        // 绘制单个方块
-        function drawBlock(x, y, color) {
-            ctx.fillStyle = color;
-            ctx.fillRect(x, y, BLOCK_SIZE, BLOCK_SIZE);
-            
-            // 绘制方块边框
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(x, y, BLOCK_SIZE, BLOCK_SIZE);
-            
-            // 绘制方块高光
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-            ctx.fillRect(x + 2, y + 2, BLOCK_SIZE - 4, BLOCK_SIZE - 4);
-        }
-
         // 绘制当前方块
         function drawPiece() {
-            if (!currentPiece) return;
+            if (!currentPiece || !imagesLoaded) return;
             
             const shape = currentPiece.shape;
-            const color = COLORS[currentPiece.type];
+            const type = currentPiece.type;
             
             for (let i = 0; i < shape.length; i++) {
                 const dx = shape[i][0];
@@ -421,9 +456,8 @@
                 const x = (currentX + dx) * BLOCK_SIZE;
                 const y = (currentY + dy) * BLOCK_SIZE;
                 
-                // 只绘制在面板内的部分
                 if (currentY + dy >= 0) {
-                    drawBlock(x, y, color);
+                    drawBlock(x, y, type);
                 }
             }
         }
@@ -433,7 +467,6 @@
             isPlaying = false;
             clearInterval(gameInterval);
             
-            // 显示游戏结束提示
             document.getElementById('finalScore').textContent = score;
             document.getElementById('gameOver').style.display = 'block';
         }
@@ -441,6 +474,11 @@
         // 开始游戏
         function startGame() {
             if (isPlaying && !isPaused) return;
+            // 图片未加载完成时，提示等待
+            if (!imagesLoaded) {
+                alert('图片正在加载中，请稍等！');
+                return;
+            }
             
             if (!isPlaying) {
                 resetBoard();
@@ -450,10 +488,7 @@
                 isPaused = false;
             }
             
-            // 设置下落定时器 (500ms一次)
             gameInterval = setInterval(dropPiece, 500);
-            
-            // 绘制游戏
             drawBoard();
             drawPiece();
         }
@@ -472,7 +507,6 @@
 
         // 绑定事件
         function bindEvents() {
-            // 按钮事件
             document.getElementById('startBtn').addEventListener('click', startGame);
             document.getElementById('pauseBtn').addEventListener('click', pauseGame);
             document.getElementById('resetBtn').addEventListener('click', () => {
@@ -483,21 +517,20 @@
                 startGame();
             });
 
-            // 键盘控制
             document.addEventListener('keydown', (e) => {
-                if (!isPlaying || isPaused) return;
+                if (!isPlaying || isPaused || !imagesLoaded) return;
                 
                 switch (e.key) {
-                    case 'ArrowLeft': // 左移
+                    case 'ArrowLeft':
                         movePiece(-1, 0);
                         break;
-                    case 'ArrowRight': // 右移
+                    case 'ArrowRight':
                         movePiece(1, 0);
                         break;
-                    case 'ArrowDown': // 下移
+                    case 'ArrowDown':
                         movePiece(0, 1);
                         break;
-                    case 'ArrowUp': // 旋转
+                    case 'ArrowUp':
                         rotatePiece();
                         break;
                 }
