@@ -292,14 +292,48 @@
             }
         }
 
-        // 旋转方块
+        // 修复后的旋转函数（核心修改）
         function rotatePiece() {
-            if (!currentPiece) return;
+            if (!currentPiece || currentPiece.type === 4) return; // O型无需旋转
             
-            // 旋转逻辑: (x,y) → (y, -x)
+            // 1. 计算旋转后的形状 (顺时针90度: (x,y) → (y, -x))
             const rotatedShape = currentPiece.shape.map(([x, y]) => [y, -x]);
             
+            // 2. 先检查原位置是否可旋转
             if (isValidMove(currentX, currentY, rotatedShape)) {
+                currentPiece.shape = rotatedShape;
+                drawBoard();
+                drawPiece();
+                return;
+            }
+            
+            // 3. 原位置不可旋转时，尝试偏移补偿（左移/右移）
+            // 补偿逻辑：检查旋转后是否越界，自动偏移修正
+            let offsetX = 0;
+            // 计算旋转后形状的最大/最小X偏移
+            const shapeXs = rotatedShape.map(([dx]) => currentX + dx);
+            const minX = Math.min(...shapeXs);
+            const maxX = Math.max(...shapeXs);
+            
+            // 越左则右移补偿，越右则左移补偿
+            if (minX < 0) {
+                offsetX = -minX; // 左边界补偿
+            } else if (maxX >= COL) {
+                offsetX = COL - 1 - maxX; // 右边界补偿
+            }
+            
+            // 检查补偿后是否可旋转
+            if (isValidMove(currentX + offsetX, currentY, rotatedShape)) {
+                currentX += offsetX;
+                currentPiece.shape = rotatedShape;
+                drawBoard();
+                drawPiece();
+                return;
+            }
+            
+            // 4. 补偿后仍不可旋转，尝试上下补偿（极少情况）
+            if (isValidMove(currentX, currentY - 1, rotatedShape)) {
+                currentY -= 1;
                 currentPiece.shape = rotatedShape;
                 drawBoard();
                 drawPiece();
